@@ -190,7 +190,32 @@ class RINEXExaminer:
         specs = self.get_system_specs()
         
         # Build the info text with all relevant details
+        
         info_text = f"""
+{'='*80}
+READY FOR RINEX FILE ANALYSIS
+{'='*80}
+
+Click "Select RINEX File" to begin processing GNSS observation data.
+
+Supported file types:
+  • RINEX v2.x and v3.x observation files
+  • Compressed RINEX files (if hatanaka is installed)
+  • Multiple GNSS constellations (GPS, GLONASS, Galileo, BeiDou, etc.)
+
+This tool will extract:
+  1. RINEX version and file type
+  2. Satellite constellations used
+  3. Observation interval/epoch rate
+  4. Observation duration and coverage
+  5. Antenna make/model and height
+  6. Station coordinates (XYZ and Lat/Lon/Elev)
+  7. Survey metadata (marker, observer, receiver info)
+  8. Data quality indicators
+
+"""
+
+        info_text += f"""
 {'='*80}
 RINEX FILE EXAMINER
 {'='*80}
@@ -246,7 +271,7 @@ COMPRESSION SUPPORT STATUS
         # Check which compression libraries are available
         # This is critical info - users need to know if they can process compressed files
         if HATANAKA_AVAILABLE:
-            info_text += """
+            info_text += f"""
 ✓ Hatanaka library: INSTALLED
   Supported formats:
     • Hatanaka compressed RINEX (.crx, .##d)
@@ -256,9 +281,11 @@ COMPRESSION SUPPORT STATUS
     • Zip archives (.zip)
   
   Status: Full compression support enabled
+
+{'='*80}
 """
         else:
-            info_text += """
+            info_text += f"""
 ✗ Hatanaka library: NOT INSTALLED
   Limited support:
     • Gzip compressed (.gz) - SUPPORTED (built-in)
@@ -274,32 +301,8 @@ COMPRESSION SUPPORT STATUS
   
   ⚠ WARNING: You will not be able to process most modern GNSS data
   without hatanaka support. Most data providers use Hatanaka compression.
-"""
-        
-        info_text += f"""
-{'='*80}
-READY FOR RINEX FILE ANALYSIS
-{'='*80}
 
-Click "Select RINEX File" to begin processing GNSS observation data.
-
-Supported file types:
-  • RINEX v2.x and v3.x observation files
-  • Compressed RINEX files (if hatanaka is installed)
-  • Multiple GNSS constellations (GPS, GLONASS, Galileo, BeiDou, etc.)
-
-This tool will extract:
-  1. RINEX version and file type
-  2. Satellite constellations used
-  3. Observation interval/epoch rate
-  4. Observation duration and coverage
-  5. Antenna make/model and height
-  6. Station coordinates (XYZ and Lat/Lon/Elev)
-  7. Survey metadata (marker, observer, receiver info)
-  8. Data quality indicators
-
-{'='*80}
-
+{'='*80} 
 """
         
         # Insert the formatted text into the results display area
@@ -673,9 +676,10 @@ This tool will extract:
                         hour = int(parts[4])
                         minute = int(parts[5])
                         second = float(parts[6])
+                        usec = int(round((second - int(second)) * 1_000_000))
                         
-                        epoch_time = datetime(year, month, day, hour, minute, int(second))
-                        
+                        epoch_time = datetime(year, month, day, hour, minute, int(second), usec)
+
                         # Store epoch times for interval calculation (limit to first 100 to save memory)
                         if len(data['epoch_times']) < 100:
                             data['epoch_times'].append(epoch_time)
@@ -698,8 +702,9 @@ This tool will extract:
                     hour = int(line[10:12])
                     minute = int(line[13:15])
                     second = float(line[16:26])
-                    
-                    epoch_time = datetime(year, month, day, hour, minute, int(second))
+                    usec = int(round((second - int(second)) * 1_000_000))
+                                        
+                    epoch_time = datetime(year, month, day, hour, minute, int(second), usec)
                     epoch_count += 1
                     
                     # Store epoch times for interval calculation (limit to first 100 to save memory)
@@ -870,6 +875,7 @@ This tool will extract:
             output += f"   Satellites observed in data: {', '.join(const_names)}\n"
         
         # Ephemerides (if NAV file, would be listed separately - this is obs file)
+        
         output += f"   Note: This appears to be an observation file.\n"
         output += f"         Ephemeris data would be in a separate navigation file.\n\n"
         
