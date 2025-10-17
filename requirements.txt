@@ -1,0 +1,10 @@
+# RINEX File Examiner - Python Dependencies
+# Install with: pip install -r requirements.txt
+
+# System information display
+psutil>=5.8.0
+
+# Hatanaka/RINEX compression support
+# This is critical for real-world GNSS data
+# Without this, you can only read .gz files
+hatanaka>=2.6.0
