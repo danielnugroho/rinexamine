@@ -34,6 +34,10 @@ import os
 import re
 import gzip
 import tempfile
+import math
+import platform
+import sys
+import psutil  # For detailed system specs - install with: pip install psutil
 
 # Try to import hatanaka library for CRX file support
 try:
@@ -57,8 +61,11 @@ class RINEXExaminer:
         self.root.title("RINEX File Examiner")
         self.root.geometry("900x700")  # Width x Height in pixels
         
-        # Create the GUI components
+        # Create the GUI components (buttons, text areas, etc.)
         self.create_widgets()
+        
+        # Display system information on startup - helps users verify their environment
+        self.display_system_info()
         
     def create_widgets(self):
         """
@@ -108,12 +115,12 @@ class RINEXExaminer:
         # Label above the results area
         results_title = tk.Label(
             results_frame,
-            text="File Information:",
+            text="System Information / File Analysis:",
             font=("Arial", 12, "bold")
         )
         results_title.pack(anchor='w')
         
-        # Scrolled text widget - this is where we display the RINEX info
+        # Scrolled text widget - this is where we display system info and RINEX analysis
         # ScrolledText gives us a text box with automatic scrollbars
         self.results_text = scrolledtext.ScrolledText(
             results_frame,
@@ -124,6 +131,182 @@ class RINEXExaminer:
             bg="#f5f5f5"
         )
         self.results_text.pack(fill=tk.BOTH, expand=True)
+    
+    def get_system_specs(self):
+        """
+        Gather detailed system specifications for display.
+        This helps users verify their environment and troubleshoot issues.
+        
+        Returns: Dictionary with system information
+        """
+        specs = {}
+        
+        try:
+            # Get CPU information
+            specs['processor'] = platform.processor() or "Unknown Processor"
+            specs['cpu_cores'] = psutil.cpu_count(logical=True)
+            
+            # Get CPU frequency (in MHz)
+            cpu_freq = psutil.cpu_freq()
+            if cpu_freq:
+                specs['cpu_freq'] = f"{cpu_freq.max:.0f} MHz" if cpu_freq.max else f"{cpu_freq.current:.0f} MHz"
+            else:
+                specs['cpu_freq'] = "Unknown"
+            
+            # Get RAM information (convert bytes to GB)
+            ram = psutil.virtual_memory()
+            specs['ram'] = f"{ram.total / (1024**3):.1f} GB"
+            specs['ram_available'] = f"{ram.available / (1024**3):.1f} GB available"
+            
+            # Get disk space for current directory
+            disk = psutil.disk_usage('/')
+            specs['disk_total'] = f"{disk.total / (1024**3):.1f} GB"
+            specs['disk_free'] = f"{disk.free / (1024**3):.1f} GB free"
+            
+        except Exception as e:
+            # If psutil fails, fall back to basic info
+            specs['processor'] = platform.processor() or "Unknown"
+            specs['cpu_cores'] = "Unknown"
+            specs['cpu_freq'] = "Unknown"
+            specs['ram'] = "Unknown"
+            specs['ram_available'] = "Unknown"
+            specs['disk_total'] = "Unknown"
+            specs['disk_free'] = "Unknown"
+        
+        return specs
+    
+    def display_system_info(self):
+        """
+        Display system information in the results panel when program starts.
+        This gives users confidence that:
+        1. The program is working correctly
+        2. They have the right dependencies installed
+        3. Their system has enough resources for processing RINEX files
+        """
+        # Get current time for the startup message
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Gather system specifications
+        specs = self.get_system_specs()
+        
+        # Build the info text with all relevant details
+        info_text = f"""
+{'='*80}
+RINEX FILE EXAMINER
+{'='*80}
+
+Started: {current_time}
+Version: {__version__}
+Author:  {__author__}
+
+{__copyright__}
+License: {__license__}
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+{'='*80}
+SYSTEM INFORMATION
+{'='*80}
+
+Operating System:
+  OS:            {platform.system()} {platform.release()}
+  Version:       {platform.version()}
+  Architecture:  {platform.machine()}
+  Node Name:     {platform.node()}
+
+Python Environment:
+  Python:        {sys.version.split()[0]}
+  Executable:    {sys.executable}
+
+Hardware Specifications:
+  Processor:     {specs.get('processor', 'Unknown')}
+  CPU Cores:     {specs.get('cpu_cores', 'Unknown')} logical processors
+  CPU Speed:     {specs.get('cpu_freq', 'Unknown')}
+  Total RAM:     {specs.get('ram', 'Unknown')}
+  Available RAM: {specs.get('ram_available', 'Unknown')}
+  Disk Space:    {specs.get('disk_total', 'Unknown')} total
+  Free Space:    {specs.get('disk_free', 'Unknown')}
+
+{'='*80}
+COMPRESSION SUPPORT STATUS
+{'='*80}
+"""
+        
+        # Check which compression libraries are available
+        # This is critical info - users need to know if they can process compressed files
+        if HATANAKA_AVAILABLE:
+            info_text += """
+✓ Hatanaka library: INSTALLED
+  Supported formats:
+    • Hatanaka compressed RINEX (.crx, .##d)
+    • Gzip compressed (.gz)
+    • Unix compress (.Z)
+    • Bzip2 compressed (.bz2)
+    • Zip archives (.zip)
+  
+  Status: Full compression support enabled
+"""
+        else:
+            info_text += """
+✗ Hatanaka library: NOT INSTALLED
+  Limited support:
+    • Gzip compressed (.gz) - SUPPORTED (built-in)
+    • Hatanaka compressed (.crx, .##d) - NOT SUPPORTED
+    • Unix compress (.Z) - NOT SUPPORTED
+    • Other formats (.bz2, .zip) - NOT SUPPORTED
+  
+  To enable full compression support, install the hatanaka library:
+  
+      pip install hatanaka
+  
+  Then restart this application.
+  
+  ⚠ WARNING: You will not be able to process most modern GNSS data
+  without hatanaka support. Most data providers use Hatanaka compression.
+"""
+        
+        info_text += f"""
+{'='*80}
+READY FOR RINEX FILE ANALYSIS
+{'='*80}
+
+Click "Select RINEX File" to begin processing GNSS observation data.
+
+Supported file types:
+  • RINEX v2.x and v3.x observation files
+  • Compressed RINEX files (if hatanaka is installed)
+  • Multiple GNSS constellations (GPS, GLONASS, Galileo, BeiDou, etc.)
+
+This tool will extract:
+  1. RINEX version and file type
+  2. Satellite constellations used
+  3. Observation interval/epoch rate
+  4. Observation duration and coverage
+  5. Antenna make/model and height
+  6. Station coordinates (XYZ and Lat/Lon/Elev)
+  7. Survey metadata (marker, observer, receiver info)
+  8. Data quality indicators
+
+{'='*80}
+
+"""
+        
+        # Insert the formatted text into the results display area
+        self.results_text.insert(tk.END, info_text)
+        
+        # Scroll to the top so user sees the start of the message
+        self.results_text.see("1.0")
         
     def select_file(self):
         """
@@ -831,10 +1014,6 @@ class RINEXExaminer:
             'M': 'Mixed'
         }
         return mapping.get(code, code)
-
-
-# Import math module for coordinate conversion
-import math
 
 
 def main():
